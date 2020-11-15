@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+  <title>mtv_dl_web</title>
+  <link rel="stylesheet" type="text/css" href="/static/css/bulma.min.css" />
+  </head>
+  <body>
+    <script type="module">
+
+{% block body %} {% endblock %}
+
+      render(html`<${App} page="All" />`, document.body);
+    </script>
+  </body>
+</html>
