@@ -1,8 +1,9 @@
 <script type="module">
-  import { h, Component, render } from '/static/js/preact.js';
+  import { html, render } from '/static/js/preact.js';
 
-  // Create your app
-  const app = h('h1', null, 'Hello World yeeahhh!');
+  function App (props) {
+    return html`<h1>Hello ${props.name}!</h1>`;
+  }
 
-  render(app, document.body);
+  render(html`<${App} name="World" />`, document.body);
 </script>
