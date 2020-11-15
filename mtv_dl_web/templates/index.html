@@ -1,14 +1,16 @@
 {% extends "base.html" %}
 {% block body %}
 
-class Clock extends Component {
-  state = { time: Date.now() };
+class DatabaseStatus extends Component {
+  state = { database_status: "database status unknown" };
 
   // Called whenever our component is created
-  componentDidMount() {
-    // update time every second
+  async componentDidMount() {
+    const database_status_fetch = await fetch('/database_status');
+    const status_text = await database_status_fetch.text();
+    // update status every second
     this.timer = setInterval(() => {
-      this.setState({ time: Date.now() });
+      this.setState({database_status: status_text });
     }, 1000);
   }
 
@@ -19,8 +21,7 @@ class Clock extends Component {
   }
 
   render() {
-    let time = new Date(this.state.time).toLocaleTimeString();
-    return html`<span>${time}</span>`;
+    return html`<span>${this.state.database_status}</span>`;
   }
 }
 
@@ -32,7 +33,7 @@ class App extends Component {
   render({ page }, { todos = [] }) {
     return html`
       <div class="app">
-        <${Clock} />
+        <${DatabaseStatus} />
         <${Header} name="ToDo's (${page})" />
         <ul>
           ${todos.map(todo => html`

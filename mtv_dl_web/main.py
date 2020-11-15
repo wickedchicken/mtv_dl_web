@@ -84,17 +84,14 @@ async def close_sqlite_pool_executor():
         await shutdownobj
 
 
-@app.route("/query")
-async def query_database():
-    if content is None:
-        abort(400)
+@app.route("/database_status")
+async def database_status():
     if LOADING_DATABASE.is_set():
-        abort(422)
+        return "loading database"
     elif REFRESHING_DATABASE.is_set():
-        abort(422)
+        return "refresh_database"
     else:
-        shows = await query_database(request.json['filters'])
-        return jsonify(shows, default=serialize_for_json)
+        return "database ready"
 
 
 
@@ -112,4 +109,4 @@ async def hello():
     return await render_template('index.html')
 
 
-app.run()
+app.run(debug=True)
