@@ -2,15 +2,15 @@
 {% block body %}
 
 class DatabaseStatus extends Component {
-  state = { database_status: "database status unknown" };
+  state = { database_status: "connecting to server" };
 
   // Called whenever our component is created
   async componentDidMount() {
-    const database_status_fetch = await fetch('/database_status');
-    const status_text = await database_status_fetch.text();
-    // update status every second
-    this.timer = setInterval(() => {
-      this.setState({database_status: status_text });
+    this.timer = setInterval(async () => {
+      const database_status_fetch = await fetch('/database_status');
+      const status_text = await database_status_fetch.text();
+      // update status every second
+      this.setState({database_status: status_text});
     }, 1000);
   }
 
@@ -20,27 +20,37 @@ class DatabaseStatus extends Component {
     clearInterval(this.timer);
   }
 
-  render() {
+  async refresh() {
+    this.setState({database_status: "requesting database refresh" });
+    const database_status_fetch = await fetch('/refresh_database', {method: 'POST'});
+    const status_text = await database_status_fetch.text();
+  }
+
+  render(props, state) {
     return html`<span>${this.state.database_status}</span>`;
   }
 }
 
 class App extends Component {
+  database_status_ref = null;
+  setDatabaseStatusRef = (dom) => this.database_status_ref = dom;
+
   addTodo() {
     const { todos = [] } = this.state;
     this.setState({ todos: todos.concat(`Item ${todos.length}`) });
   }
+
   render({ page }, { todos = [] }) {
     return html`
       <div class="app">
-        <${DatabaseStatus} />
+        <${DatabaseStatus} ref=${this.setDatabaseStatusRef} />
         <${Header} name="ToDo's (${page})" />
         <ul>
           ${todos.map(todo => html`
             <li key="${todo}">${todo}</li>
           `)}
         </ul>
-        <button onClick=${() => this.addTodo()}>Add Todo</button>
+        <button onClick=${() => this.database_status_ref.refresh()}>Refresh Database</button>
         <${Footer}>footer content here<//>
       </div>
     `;

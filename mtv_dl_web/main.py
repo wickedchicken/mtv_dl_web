@@ -89,10 +89,14 @@ async def database_status():
     if LOADING_DATABASE.is_set():
         return "loading database"
     elif REFRESHING_DATABASE.is_set():
-        return "refresh_database"
+        return "refreshing database"
     else:
         return "database ready"
 
+@app.route("/refresh_database", methods=['POST'])
+async def refresh_database_route():
+    asyncio.create_task(refresh_database())
+    return 'refreshing database'
 
 
 # @app.route("/info")
