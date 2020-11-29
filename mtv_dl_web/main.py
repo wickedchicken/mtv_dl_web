@@ -99,14 +99,26 @@ async def refresh_database_route():
     return 'refreshing database'
 
 
-# @app.route("/info")
-# async def hello():
-#     if LOADING_DATABASE.is_set():
-#         return "loading database"
-#     elif REFRESHING_DATABASE.is_set():
-#         return "refreshing database"
-#     else:
-#         return json.dumps(, default=serialize_for_json, indent=4, sort_keys=True)
+@app.route("/query", methods=['POST'])
+async def query():
+    body_json = await request.get_json()
+
+    rules = body_json.get('rules', [])
+    limit = body_json.get('limit', 10)
+
+    if LOADING_DATABASE.is_set():
+        return jsonify({'busy': "loading database"})
+    elif REFRESHING_DATABASE.is_set():
+        return jsonify({'busy': "refreshing database"})
+    else:
+        database_lock = DATABASE_LOCK
+        async with asyncio.wait_for(database_lock.acquire(), timeout=1.0):
+            try:
+                # todo: use jsonify
+                results = await query_database(rules, limit=limit)
+                return json.dumps({'result': results}, default=serialize_for_json, indent=4, sort_keys=True)
+            finally:
+                database_lock.release()
 
 @app.route("/")
 async def hello():

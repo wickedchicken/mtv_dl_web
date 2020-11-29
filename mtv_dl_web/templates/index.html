@@ -1,6 +1,51 @@
 {% extends "base.html" %}
 {% block body %}
 
+class SearchList extends Component {
+  state = { list: '' };
+
+  async queryList() {
+    async function inner_query() {
+      const rawResponse = await fetch('/query', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({limit: 10, rules: ['title=Wart', 'channel=ARD']})
+      });
+      return await rawResponse.json();
+    }
+    const content = await inner_query();
+    if ('result' in content) {
+      this.setState({list: content['result']})
+    }
+  }
+
+  onSubmit = async(e) => {
+    await queryList();
+    e.preventDefault();
+  }
+
+  onInput = e => {
+    const { value } = e.target;
+    this.setState({ value })
+  }
+
+  render(_, { value }) {
+    return (
+      html`
+      <form onSubmit={this.onSubmit}>
+        <input type="text" value={value} onInput={this.onInput} />
+        <p>You typed this value: {value}</p>
+        <button type="submit">Submit</button>
+      </form>
+      <span>${this.state.list}</span>
+      `
+    );
+  }
+}
+
 class DatabaseStatus extends Component {
   state = { database_status: "connecting to server" };
 
@@ -51,6 +96,7 @@ class App extends Component {
           `)}
         </ul>
         <button onClick=${() => this.database_status_ref.refresh()}>Refresh Database</button>
+        <${SearchList}/>
         <${Footer}>footer content here<//>
       </div>
     `;
