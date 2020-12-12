@@ -5,7 +5,7 @@ import concurrent.futures
 import json
 import os
 from pathlib import Path
-from quart import abort, jsonify
+from quart import abort, jsonify, request
 from quart import render_template
 
 from mtv_dl import (
@@ -112,13 +112,16 @@ async def query():
         return jsonify({'busy': "refreshing database"})
     else:
         database_lock = DATABASE_LOCK
-        async with asyncio.wait_for(database_lock.acquire(), timeout=1.0):
+        try:
+            await asyncio.wait_for(database_lock.acquire(), timeout=1.0)
             try:
                 # todo: use jsonify
                 results = await query_database(rules, limit=limit)
                 return json.dumps({'result': results}, default=serialize_for_json, indent=4, sort_keys=True)
             finally:
                 database_lock.release()
+        except asyncio.TimeoutError:
+            return jsonify({'busy': "performing database operations"})
 
 @app.route("/")
 async def hello():
