@@ -1,7 +1,7 @@
 class SearchList extends Component {
-  state = { list: '' };
+  state = { list: [], value: '["title=Wart", "channel=ARD"]' };
 
-  async queryList() {
+  async queryList(rules) {
     async function inner_query() {
       const rawResponse = await fetch('/query', {
         method: 'POST',
@@ -9,7 +9,7 @@ class SearchList extends Component {
           'Accept': 'application/json',
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({limit: 10, rules: ['title=Wart', 'channel=ARD']})
+        body: JSON.stringify({limit: 10, rules: rules})
       });
       return await rawResponse.json();
     }
@@ -17,13 +17,16 @@ class SearchList extends Component {
     console.log('yo');
     console.log(content);
     if ('result' in content) {
+      console.log('soooyo');
+      console.log(content['result']);
       this.setState({list: content['result']})
     }
   }
 
   onSubmit = async(e) => {
     e.preventDefault();
-    await this.queryList();
+    console.log(this.state.value)
+    await this.queryList(JSON.parse(this.state.value));
   }
 
   onInput = e => {
@@ -39,7 +42,26 @@ class SearchList extends Component {
         <p>You typed this value: ${value}</p>
         <button type="submit">Submit</button>
       </form>
-      <span>${this.state.list}</span>
+
+      <table>
+      <tr>
+        <th>Title</th>
+        <th>Channel</th>
+        <th>Date</th>
+        <th>Duration</th>
+        <th>Topic</th>
+      </tr>
+      <p>results found (limit 10): ${this.state.list.length}</p>
+      ${this.state.list.map(element => html`
+      <tr>
+        <td>${element['title']}</td>
+        <td>${element['channel']}</td>
+        <td>${element['start']}</td>
+        <td>${element['duration']}</td>
+        <td>${element['topic']}</td>
+      </tr>
+      `)}
+      </table>
       `
     );
   }
