@@ -1,11 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
-  <title>htm Demo</title>
-  <script type="module">
-    import { html, Component, render } from '/static/js/preact.js';
+  <head>
+  <title>mtv_dl_web</title>
+  <link rel="stylesheet" type="text/css" href="/static/css/bulma.min.css" />
+  </head>
+  <body>
+    <script type="module">
+      import { html, Component, render } from '/static/js/preact.js';
 
 {% block body %} {% endblock %}
 
-    render(html`<${App} page="All" />`, document.body);
-  </script>
+      render(html`<${App} page="All" />`, document.body);
+    </script>
+  </body>
 </html>

@@ -14,10 +14,8 @@ class SearchList extends Component {
       return await rawResponse.json();
     }
     const content = await inner_query();
-    console.log('yo');
     console.log(content);
     if ('result' in content) {
-      console.log('soooyo');
       console.log(content['result']);
       this.setState({list: content['result']})
     }
@@ -43,7 +41,7 @@ class SearchList extends Component {
         <button type="submit">Submit</button>
       </form>
 
-      <table>
+      <table class="table is-striped is-hoverable is-bordered">
       <tr>
         <th>Title</th>
         <th>Channel</th>
