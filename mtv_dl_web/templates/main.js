@@ -39,6 +39,7 @@ class SearchList extends Component {
     list: [],
     title: "",
     query_filters: {},
+    queries_in_progress: 0,
   };
 
   async queryList(rules) {
@@ -62,21 +63,28 @@ class SearchList extends Component {
   }
 
   async onSubmit() {
+    this.setState({queries_in_progress: 1})
+    console.log('hi')
+    console.log(this.state.queries_in_progress)
     const query_filters = this.state.query_filters;
     console.log(query_filters);
     const result = Object.entries(query_filters).filter(x => x[1].length > 0).map(x => x[0] + x[1]);
     console.log(result);
     await this.queryList(result);
+    this.setState({queries_in_progress: 0})
+    console.log('lol')
+    console.log(this.state.queries_in_progress)
   }
 
   inputHandler(p) {
     this.setState(p);
-    debounce(this.onSubmit(), 1000);
+    debounce(this.onSubmit(), 100);
   }
 
   render(_, { value }) {
     return (
       html`
+      ${(this.state.queries_in_progress > 0) ? html`<progress class="progress is-small is-primary" max="100">15%</progress>` : null}
       <table class="table is-striped is-hoverable is-bordered">
       <tr>
         <th>Title</th>
