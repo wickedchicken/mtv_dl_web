@@ -1,5 +1,45 @@
+import { html, Component, render } from '/static/js/preact.js';
+
+const debounce = (func, delay) => {
+  let inDebounce
+  return function() {
+    const context = this
+    const args = arguments
+    clearTimeout(inDebounce)
+    inDebounce = setTimeout(() => func.apply(context, args), delay)
+  }
+}
+
+class SearchField extends Component {
+  state = {
+    value: "",
+  }
+
+  onInput = e => {
+    const { value } = e.target;
+    this.setState({ value });
+    var new_filter_state = this.props.oldstate()['query_filters'];
+    new_filter_state[this.props.name] = value;
+    this.props.searchListSetState({ query_filters: new_filter_state })
+  }
+
+  render(props, state) {
+    return (
+      html`
+        <td>
+          <input type="text" value=${state.value} onInput=${this.onInput} />
+        </td>
+      `
+    );
+  }
+}
+
 class SearchList extends Component {
-  state = { list: [], value: '["title=Wart", "channel=ARD"]' };
+  state = {
+    list: [],
+    title: "",
+    query_filters: {},
+  };
 
   async queryList(rules) {
     async function inner_query() {
@@ -21,26 +61,22 @@ class SearchList extends Component {
     }
   }
 
-  onSubmit = async(e) => {
-    e.preventDefault();
-    console.log(this.state.value)
-    await this.queryList(JSON.parse(this.state.value));
+  async onSubmit() {
+    const query_filters = this.state.query_filters;
+    console.log(query_filters);
+    const result = Object.entries(query_filters).filter(x => x[1].length > 0).map(x => x[0] + x[1]);
+    console.log(result);
+    await this.queryList(result);
   }
 
-  onInput = e => {
-    const { value } = e.target;
-    this.setState({ value })
+  inputHandler(p) {
+    this.setState(p);
+    debounce(this.onSubmit(), 1000);
   }
 
   render(_, { value }) {
     return (
       html`
-      <form onSubmit=${this.onSubmit}>
-        <input type="text" value=${value} onInput=${this.onInput} />
-        <p>You typed this value: ${value}</p>
-        <button type="submit">Submit</button>
-      </form>
-
       <table class="table is-striped is-hoverable is-bordered">
       <tr>
         <th>Title</th>
@@ -48,6 +84,13 @@ class SearchList extends Component {
         <th>Date</th>
         <th>Duration</th>
         <th>Topic</th>
+      </tr>
+      <tr>
+        <${SearchField} name="title" oldstate=${()=>{return this.state}} searchListSetState=${p=>{this.inputHandler(p)}} />
+        <${SearchField} name="channel" oldstate=${()=>{return this.state}} searchListSetState=${p=>{this.inputHandler(p)}} />
+        <${SearchField} name="start" oldstate=${()=>{return this.state}} searchListSetState=${p=>{this.inputHandler(p)}} />
+        <${SearchField} name="duration" oldstate=${()=>{return this.state}} searchListSetState=${p=>{this.inputHandler(p)}} />
+        <${SearchField} name="topic" oldstate=${()=>{return this.state}} searchListSetState=${p=>{this.inputHandler(p)}} />
       </tr>
       <p>results found (limit 10): ${this.state.list.length}</p>
       ${this.state.list.map(element => html`
