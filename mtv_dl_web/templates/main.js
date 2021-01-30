@@ -40,9 +40,12 @@ class SearchList extends Component {
     title: "",
     query_filters: {},
     queries_in_progress: 0,
-  };
+  }
 
   async queryList(rules) {
+    const resultsperpage = this.props.resultsPerPage;
+    console.log('yyyeahhh');
+    console.log(resultsperpage);
     async function inner_query() {
       const rawResponse = await fetch('/query', {
         method: 'POST',
@@ -50,7 +53,7 @@ class SearchList extends Component {
           'Accept': 'application/json',
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({limit: 10, rules: rules})
+        body: JSON.stringify({limit: resultsperpage, rules: rules})
       });
       return await rawResponse.json();
     }
@@ -64,16 +67,12 @@ class SearchList extends Component {
 
   async onSubmit() {
     this.setState({queries_in_progress: 1})
-    console.log('hi')
-    console.log(this.state.queries_in_progress)
     const query_filters = this.state.query_filters;
     console.log(query_filters);
     const result = Object.entries(query_filters).filter(x => x[1].length > 0).map(x => x[0] + x[1]);
     console.log(result);
     await this.queryList(result);
     this.setState({queries_in_progress: 0})
-    console.log('lol')
-    console.log(this.state.queries_in_progress)
   }
 
   inputHandler(p) {
@@ -81,10 +80,10 @@ class SearchList extends Component {
     debounce(this.onSubmit(), 100);
   }
 
-  render(_, { value }) {
+  render(props, { value }) {
     return (
       html`
-      ${(this.state.queries_in_progress > 0) ? html`<progress class="progress is-small is-primary" max="100">15%</progress>` : null}
+      ${(this.state.queries_in_progress > 0) ? html`<progress class="progress is-small is-primary" max="100">15%</progress>` : html`<div>hi</div>`}
       <table class="table is-striped is-hoverable is-bordered">
       <tr>
         <th>Title</th>
@@ -100,7 +99,7 @@ class SearchList extends Component {
         <${SearchField} name="duration" oldstate=${()=>{return this.state}} searchListSetState=${p=>{this.inputHandler(p)}} />
         <${SearchField} name="topic" oldstate=${()=>{return this.state}} searchListSetState=${p=>{this.inputHandler(p)}} />
       </tr>
-      <p>results found (limit 10): ${this.state.list.length}</p>
+      <p>results found (limit ${props.resultsPerPage}): ${this.state.list.length}</p>
       ${this.state.list.map(element => html`
       <tr>
         <td>${element['title']}</td>
@@ -166,7 +165,7 @@ class App extends Component {
           `)}
         </ul>
         <button onClick=${() => this.database_status_ref.refresh()}>Refresh Database</button>
-        <${SearchList}/>
+        <${SearchList} resultsPerPage=10 />
         <${Footer}>footer content here<//>
       </div>
     `;

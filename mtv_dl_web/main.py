@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from quart import abort, jsonify, request
 from quart import render_template
+from paginate import Page
 
 from mtv_dl import (
     FILMLISTE_DATABASE_FILE,
@@ -16,6 +17,9 @@ from mtv_dl import (
 )
 from quart import Quart
 
+from asyncache import cached
+from cachetools import LRUCache
+
 SQLITE_POOL_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
 LOADING_DATABASE = asyncio.Event()
@@ -23,6 +27,8 @@ REFRESHING_DATABASE = asyncio.Event()
 DATABASE_LOCK = asyncio.Lock()
 
 SHOWLIST = None
+
+DATABASE_QUERY_CACHE = LRUCache(maxsize=32 * 1024)
 
 
 async def run_in_sqlite_pool(func):
@@ -43,6 +49,7 @@ async def load_database():
                 )
 
             SHOWLIST = await run_in_sqlite_pool(inner_func)
+            DATABASE_QUERY_CACHE.clear()
         LOADING_DATABASE.clear()
 
 
@@ -57,13 +64,12 @@ async def refresh_database():
             await run_in_sqlite_pool(inner_func)
         REFRESHING_DATABASE.clear()
 
-async def query_database(rules, limit=10):
+@cached(cache=DATABASE_QUERY_CACHE)
+async def query_database(rules, page, items_per_page=20, limit=10000):
     def inner_func():
-        return list(SHOWLIST.filtered(rules=rules, limit=limit))
+        return Page(list(SHOWLIST.filtered(rules=rules, limit=limit)), page=page)
 
-    return await asyncio.get_running_loop().run_in_executor(
-        SQLITE_POOL_EXECUTOR, inner_func
-    )
+    return await run_in_sqlite_pool(inner_func)
 
 
 app = Quart(__name__)
@@ -105,6 +111,9 @@ async def query():
 
     rules = body_json.get('rules', [])
     limit = body_json.get('limit', 10)
+    page = body_json.get('page', 1)
+    if page < 0:
+        abort(400, 'page cannot be below 1')
 
     if LOADING_DATABASE.is_set():
         return jsonify({'busy': "loading database"})
@@ -116,8 +125,14 @@ async def query():
             await asyncio.wait_for(database_lock.acquire(), timeout=1.0)
             try:
                 # todo: use jsonify
-                results = await query_database(rules, limit=limit)
-                return json.dumps({'result': results}, default=serialize_for_json, indent=4, sort_keys=True)
+                results = await query_database(tuple(rules), page=page, items_per_page=limit)
+                return json.dumps(
+                    {
+                        'result': results.items,
+                        'last_page': results.last_page,
+                        'item_count': results.item_count,
+                    },
+                default=serialize_for_json, indent=4, sort_keys=True)
             finally:
                 database_lock.release()
         except asyncio.TimeoutError:
