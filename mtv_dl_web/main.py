@@ -131,6 +131,7 @@ async def query():
                         'result': results.items,
                         'last_page': results.last_page,
                         'item_count': results.item_count,
+                        'page': results.page,
                     },
                 default=serialize_for_json, indent=4, sort_keys=True)
             finally:

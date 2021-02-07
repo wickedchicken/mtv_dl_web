@@ -10,6 +10,23 @@ const debounce = (func, delay) => {
   }
 }
 
+function PageList(props) {
+  function jump_to_page(page) {
+    props.pageListSetState({ page: page, query_filters: props.queryFilters});
+  }
+
+  function render_link(page) {
+    if (props.page == page) {
+      return html`${page} `
+    } else {
+      return html`<a onclick=${() => {jump_to_page(page)}}>${page}</a> `
+    }
+  }
+
+  const page_array = [...Array(props.pages).keys()].map(i => {return render_link(i+1)});
+  return page_array
+}
+
 class SearchField extends Component {
   state = {
     value: "",
@@ -40,12 +57,16 @@ class SearchList extends Component {
     title: "",
     query_filters: {},
     queries_in_progress: 0,
+    page: 1,
+    pages: 1,
+    item_count: 0,
   }
 
-  async queryList(rules) {
+  async queryList(rules, page) {
     const resultsperpage = this.props.resultsPerPage;
     console.log('yyyeahhh');
     console.log(resultsperpage);
+    console.log(page);
     async function inner_query() {
       const rawResponse = await fetch('/query', {
         method: 'POST',
@@ -53,7 +74,11 @@ class SearchList extends Component {
           'Accept': 'application/json',
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({limit: resultsperpage, rules: rules})
+        body: JSON.stringify({
+          limit: resultsperpage,
+          rules: rules,
+          page: page,
+        })
       });
       return await rawResponse.json();
     }
@@ -61,29 +86,44 @@ class SearchList extends Component {
     console.log(content);
     if ('result' in content) {
       console.log(content['result']);
-      this.setState({list: content['result']})
+      this.setState({
+        list: content['result'],
+        page: content['page'],
+        pages: content['last_page'],
+        item_count: content['item_count'],
+      })
     }
   }
 
-  async onSubmit() {
+  async onSubmit(query_filters, page) {
     this.setState({queries_in_progress: 1})
-    const query_filters = this.state.query_filters;
     console.log(query_filters);
     const result = Object.entries(query_filters).filter(x => x[1].length > 0).map(x => x[0] + x[1]);
     console.log(result);
-    await this.queryList(result);
+    await this.queryList(result, page);
     this.setState({queries_in_progress: 0})
+  }
+
+  linkHandler(p) {
+    this.setState(p);
+    this.onSubmit(p.query_filters, p.page)
   }
 
   inputHandler(p) {
     this.setState(p);
-    debounce(this.onSubmit(), 100);
+    this.onSubmit(p.query_filters, 1)
   }
 
   render(props, { value }) {
+    const current_lower_bound = ((this.state.page - 1) * props.resultsPerPage) + 1;
+    const current_upper_bound = Math.min(
+      this.state.item_count,
+      (this.state.page * props.resultsPerPage) + 1);
+
     return (
       html`
       ${(this.state.queries_in_progress > 0) ? html`<progress class="progress is-small is-primary" max="100">15%</progress>` : html`<div>hi</div>`}
+      <p>results found (${current_lower_bound}-${current_upper_bound} out of ${this.state.item_count}) <${PageList} pageListSetState=${p=>{this.linkHandler(p)}} pages=${this.state.pages} page=${this.state.page} queryFilters=${this.state.query_filters}/></p>
       <table class="table is-striped is-hoverable is-bordered">
       <tr>
         <th>Title</th>
@@ -99,7 +139,6 @@ class SearchList extends Component {
         <${SearchField} name="duration" oldstate=${()=>{return this.state}} searchListSetState=${p=>{this.inputHandler(p)}} />
         <${SearchField} name="topic" oldstate=${()=>{return this.state}} searchListSetState=${p=>{this.inputHandler(p)}} />
       </tr>
-      <p>results found (limit ${props.resultsPerPage}): ${this.state.list.length}</p>
       ${this.state.list.map(element => html`
       <tr>
         <td>${element['title']}</td>
