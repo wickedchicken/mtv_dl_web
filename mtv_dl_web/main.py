@@ -5,30 +5,28 @@ import concurrent.futures
 import json
 import os
 from pathlib import Path
-from quart import abort, jsonify, request
-from quart import render_template
-from paginate import Page
 
+from asyncache import cached
+from cachetools import LRUCache
 from mtv_dl import (
     FILMLISTE_DATABASE_FILE,
     HISTORY_DATABASE_FILE,
     Database,
     serialize_for_json,
 )
-from quart import Quart
-
-from asyncache import cached
-from cachetools import LRUCache
+from paginate import Page
+from quart import Quart, abort, jsonify, render_template, request
 
 SQLITE_POOL_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
-LOADING_DATABASE = asyncio.Event()
-REFRESHING_DATABASE = asyncio.Event()
-DATABASE_LOCK = asyncio.Lock()
+LOADING_DATABASE = None
+REFRESHING_DATABASE = None
+DATABASE_LOCK = None
 
 SHOWLIST = None
 
 DATABASE_QUERY_CACHE = LRUCache(maxsize=32 * 1024)
+DATABASE_QUERY_PAGE_CACHE = LRUCache(maxsize=32 * 1024)
 
 
 async def run_in_sqlite_pool(func):
@@ -50,6 +48,7 @@ async def load_database():
 
             SHOWLIST = await run_in_sqlite_pool(inner_func)
             DATABASE_QUERY_CACHE.clear()
+            DATABASE_QUERY_PAGE_CACHE.clear()
         LOADING_DATABASE.clear()
 
 
@@ -64,10 +63,16 @@ async def refresh_database():
             await run_in_sqlite_pool(inner_func)
         REFRESHING_DATABASE.clear()
 
+
 @cached(cache=DATABASE_QUERY_CACHE)
+def query_database_inner(rules, limit=10000):
+    return list(SHOWLIST.filtered(rules=rules, limit=limit))
+
+
+@cached(cache=DATABASE_QUERY_PAGE_CACHE)
 async def query_database(rules, page, items_per_page=20, limit=10000):
     def inner_func():
-        return Page(list(SHOWLIST.filtered(rules=rules, limit=limit)), page=page)
+        return Page(query_database_inner(rules=rules, limit=limit), page=page)
 
     return await run_in_sqlite_pool(inner_func)
 
@@ -77,6 +82,14 @@ app = Quart(__name__)
 
 @app.before_serving
 async def refresh_database_on_startup():
+    global LOADING_DATABASE
+    global REFRESHING_DATABASE
+    global DATABASE_LOCK
+
+    LOADING_DATABASE = asyncio.Event()
+    REFRESHING_DATABASE = asyncio.Event()
+    DATABASE_LOCK = asyncio.Lock()
+
     async def inner_func():
         await load_database()
         await refresh_database()
@@ -99,49 +112,56 @@ async def database_status():
     else:
         return "database ready"
 
-@app.route("/refresh_database", methods=['POST'])
+
+@app.route("/refresh_database", methods=["POST"])
 async def refresh_database_route():
     asyncio.create_task(refresh_database())
-    return 'refreshing database'
+    return "refreshing database"
 
 
-@app.route("/query", methods=['POST'])
+@app.route("/query", methods=["POST"])
 async def query():
     body_json = await request.get_json()
 
-    rules = body_json.get('rules', [])
-    limit = body_json.get('limit', 10)
-    page = body_json.get('page', 1)
+    rules = body_json.get("rules", [])
+    limit = body_json.get("limit", 10)
+    page = body_json.get("page", 1)
     if page < 0:
-        abort(400, 'page cannot be below 1')
+        abort(400, "page cannot be below 1")
 
     if LOADING_DATABASE.is_set():
-        return jsonify({'busy': "loading database"})
+        return jsonify({"busy": "loading database"})
     elif REFRESHING_DATABASE.is_set():
-        return jsonify({'busy': "refreshing database"})
+        return jsonify({"busy": "refreshing database"})
     else:
         database_lock = DATABASE_LOCK
         try:
             await asyncio.wait_for(database_lock.acquire(), timeout=1.0)
             try:
                 # todo: use jsonify
-                results = await query_database(tuple(rules), page=page, items_per_page=limit)
+                results = await query_database(
+                    tuple(rules), page=page, items_per_page=limit
+                )
                 return json.dumps(
                     {
-                        'result': results.items,
-                        'last_page': results.last_page,
-                        'item_count': results.item_count,
-                        'page': results.page,
+                        "result": results.items,
+                        "last_page": results.last_page,
+                        "item_count": results.item_count,
+                        "page": results.page,
                     },
-                default=serialize_for_json, indent=4, sort_keys=True)
+                    default=serialize_for_json,
+                    indent=4,
+                    sort_keys=True,
+                )
             finally:
                 database_lock.release()
         except asyncio.TimeoutError:
-            return jsonify({'busy': "performing database operations"})
+            return jsonify({"busy": "performing database operations"})
+
 
 @app.route("/")
 async def hello():
-    return await render_template('index.html')
+    return await render_template("index.html")
 
 
 app.run(debug=True)

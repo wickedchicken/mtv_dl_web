@@ -96,12 +96,14 @@ class SearchList extends Component {
   }
 
   async onSubmit(query_filters, page) {
-    this.setState({queries_in_progress: 1})
-    console.log(query_filters);
-    const result = Object.entries(query_filters).filter(x => x[1].length > 0).map(x => x[0] + x[1]);
-    console.log(result);
+    if (Object.values(query_filters).every(x => !x)) {
+      this.setState({item_count: 0, list: [], page:0, pages:0});
+      return;
+    }
+    this.setState({queries_in_progress: 1});
+    const result = Object.entries(query_filters).filter(x => x[1].length > 0).map(x => x[0] + '=' + x[1]);
     await this.queryList(result, page);
-    this.setState({queries_in_progress: 0})
+    this.setState({queries_in_progress: 0});
   }
 
   linkHandler(p) {
@@ -111,7 +113,7 @@ class SearchList extends Component {
 
   inputHandler(p) {
     this.setState(p);
-    this.onSubmit(p.query_filters, 1)
+    this.onSubmit(p.query_filters, 1);
   }
 
   render(props, { value }) {
