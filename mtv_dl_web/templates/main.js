@@ -48,7 +48,7 @@ class SearchField extends Component {
     return (
       html`
         <td>
-          <input type="text" value=${state.value} onInput=${debounce(this.onInput, 100)} />
+          <input type="text" value=${state.value} onInput=${debounce(this.onInput, 1000)} />
         </td>
       `
     );
