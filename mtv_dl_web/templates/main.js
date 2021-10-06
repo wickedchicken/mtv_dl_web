@@ -20,13 +20,24 @@ function Toggle(props) {
   return html`<a onclick=${() => {props.onToggle(props.desired_state)}}>${props.desired_state}</a>`
 }
 
+function SortToggle(props) {
+  return ["v", "^"].map(x => {
+    if (props.state().sort_field == props.field) {
+      if (props.state().sort_direction == x) {
+        return html`<small><b>sort ${x}</b></small>`
+      }
+    }
+    return html`<small><a onclick=${() => {props.sortToggle(props.field, x)}}>sort ${x}</a></small> `
+  })
+}
+
 function PageList(props) {
   function slice_page_array(page_array) {
     if (props.pages <= props.pagesToDisplay) {
       return page_array;
     }
 
-    // this may break if pagesToDisplay is not even...
+    // I get the feeling this may break if pagesToDisplay is not even...
     const halfway = props.pagesToDisplay / 2;
 
     // handle special case where it's one more page than we want, then the ... don't make sense
@@ -62,7 +73,7 @@ function PageList(props) {
   }
 
   const page_array = [...Array(props.pages).keys()].map(i => {return render_link(i+1)});
-  return [html`Pages of results: `].concat(slice_page_array(page_array))
+  return [html`pages of results: `].concat(slice_page_array(page_array))
 }
 
 class SearchField extends Component {
@@ -97,11 +108,17 @@ class DateSearchField extends SearchField {
 
 
   compute_filter_state(value, toggle) {
+    if (value == '') {
+      return '';
+    }
     if (toggle == 'after') {
       return 'start+' + value;
     }
     if (toggle == 'before') {
       return 'start-' + value;
+    }
+    if (toggle == 'ago') {
+      return 'age-' + value;
     }
     return '';
   }
@@ -123,16 +140,20 @@ class DateSearchField extends SearchField {
     this.setFilterState(this.state.value, toggle)
   }
 
+
   render(props, state) {
     return (
       html`
         <td>
           <input type="text" value=${state.value} onInput=${debounce(this.onInput, 1000)} />
-          <table>
+          <table class="table is-narrow">
+          <tbody>
           <tr>
-          <td> <${Toggle} desired_state="before" state=${this.state} onToggle=${this.onToggle}/></td>
+          <td><${Toggle} desired_state="before" state=${this.state} onToggle=${this.onToggle}/></td>
           <td><${Toggle} desired_state="after" state=${this.state} onToggle=${this.onToggle}/></td>
+          <td><${Toggle} desired_state="ago" state=${this.state} onToggle=${this.onToggle}/></td>
           </tr>
+          </tbody>
           </table>
         </td>
       `
@@ -149,9 +170,11 @@ class SearchList extends Component {
     page: 1,
     pages: 1,
     item_count: 0,
+    sort_field: "start",
+    sort_direction: "v"
   }
 
-  async queryList(rules, page) {
+  async queryList(rules, page, sort_field, sort_direction) {
     const resultsperpage = this.props.resultsPerPage;
     async function inner_query() {
       const rawResponse = await fetch('/query', {
@@ -164,6 +187,8 @@ class SearchList extends Component {
           limit: resultsperpage,
           rules: rules,
           page: page,
+          sort_field: sort_field,
+          sort_direction: sort_direction,
         })
       });
       return await rawResponse.json();
@@ -171,6 +196,7 @@ class SearchList extends Component {
     let content = await inner_query();
     while (('busy' in content) && (this.is_active_query(rules))) {
       // todo: sleep!!!
+      // todo: give up after a certain number of times
       content = await inner_query();
     }
     if ('result' in content) {
@@ -185,6 +211,17 @@ class SearchList extends Component {
         })
       }
     }
+  }
+
+  sortToggle = (field, direction) => {
+    this.setState({ 'sort_field': field, 'sort_direction': direction });
+    if (Object.values(this.state.query_filters).every(x => !x)) {
+      this.setState({item_count: 0, list: [], page:0, pages:0});
+      return;
+    }
+    this.setState({queries_in_progress: 1});
+    const rules = this.make_rules(this.state.query_filters);
+    this.queryList(rules, this.state.page, field, direction);
   }
 
   make_rules(query_filters) {
@@ -215,7 +252,7 @@ class SearchList extends Component {
     }
     this.setState({queries_in_progress: 1});
     const rules = this.make_rules(query_filters);
-    this.queryList(rules, page);
+    this.queryList(rules, page, this.state.sort_field, this.state.sort_direction);
   }
 
   linkHandler(p) {
@@ -240,11 +277,11 @@ class SearchList extends Component {
       <p>results found (${current_lower_bound}-${current_upper_bound} out of ${this.state.item_count}) <${PageList} pageListSetState=${p=>{this.linkHandler(p)}} pages=${this.state.pages} pagesToDisplay=${10} page=${this.state.page} queryFilters=${this.state.query_filters}/></p>
       <table class="table is-striped is-hoverable is-bordered is-fullwidth">
       <tr>
-        <th>Title</th>
-        <th>Channel</th>
-        <th>Date</th>
-        <th>Duration</th>
-        <th>Topic</th>
+        <th>Title <${SortToggle} state=${()=>{return this.state}} field="title" sortToggle=${this.sortToggle} /></th>
+        <th>Channel <${SortToggle} state=${()=>{return this.state}} field="channel" sortToggle=${this.sortToggle} /></th>
+        <th>Date <${SortToggle} state=${()=>{return this.state}} field="start" sortToggle=${this.sortToggle} /></th>
+        <th>Duration <${SortToggle} state=${()=>{return this.state}} field="duration" sortToggle=${this.sortToggle} /></th>
+        <th>Topic <${SortToggle} state=${()=>{return this.state}} field="topic" sortToggle=${this.sortToggle} /></th>
       </tr>
       <tr>
         <${SearchField} name="title" oldstate=${()=>{return this.state}} searchListSetState=${p=>{this.inputHandler(p)}} />

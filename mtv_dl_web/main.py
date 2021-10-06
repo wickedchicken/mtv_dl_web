@@ -70,9 +70,15 @@ def query_database_inner(rules, limit=10000):
 
 
 @cached(cache=DATABASE_QUERY_PAGE_CACHE)
-async def query_database(rules, page, items_per_page=20, limit=10000):
+async def query_database(rules, page, items_per_page=20, limit=10000, sort_field=None, sort_direction=None):
     def inner_func():
-        return Page(query_database_inner(rules=rules, limit=limit), page=page, items_per_page=items_per_page)
+        show_list = query_database_inner(rules=rules, limit=limit)
+        print(show_list[1])
+        if sort_field and sort_direction:
+            show_list.sort(key=lambda x: x[sort_field])
+            if sort_direction == 'v':
+                show_list.reverse()
+        return Page(show_list, page=page, items_per_page=items_per_page)
 
     return await run_in_sqlite_pool(inner_func)
 
@@ -123,6 +129,13 @@ async def refresh_database_route():
 async def query():
     body_json = await request.get_json()
 
+    sort_field = body_json.get("sort_field")
+    allowed_field_list = ('title', 'channel', 'start', 'duration', 'topic')
+    if sort_field and sort_field not in allowed_field_list:
+        abort(400, "sort_field must be one of {}".format(allowed_field_list))
+    sort_direction = body_json.get("sort_direction")
+    if sort_direction and sort_direction not in ('v', '^'):
+        abort(400, "sort_direction must be one of 'v' or '^'")
     rules = body_json.get("rules", [])
     limit = int(body_json.get("limit", 10))
     page = int(body_json.get("page", 1))
@@ -140,7 +153,8 @@ async def query():
             try:
                 # todo: use jsonify
                 results = await query_database(
-                    tuple(rules), page=page, items_per_page=limit
+                    tuple(rules), page=page, items_per_page=limit,
+                    sort_field=sort_field, sort_direction=sort_direction,
                 )
                 return json.dumps(
                     {
