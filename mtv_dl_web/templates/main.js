@@ -161,6 +161,63 @@ class DateSearchField extends SearchField {
   }
 }
 
+class DurationSearchField extends SearchField {
+  state = {
+    toggle: "",
+    value: "",
+  }
+
+
+  compute_filter_state(value, toggle) {
+    if (value == '') {
+      return '';
+    }
+    if (toggle == 'shorter') {
+      return 'duration+' + value;
+    }
+    if (toggle == 'longer') {
+      return 'duration-' + value;
+    }
+    return '';
+  }
+
+  setFilterState(value, toggle) {
+    var new_filter_state = this.props.oldstate()['query_filters'];
+    new_filter_state[this.props.name] = this.compute_filter_state(value, toggle);
+    this.props.searchListSetState({ query_filters: new_filter_state })
+  }
+
+  onInput = e => {
+    const { value } = e.target;
+    this.setState({ value });
+    this.setFilterState(value, this.state.toggle)
+  }
+
+  onToggle = toggle => {
+    this.setState({ 'toggle': toggle });
+    this.setFilterState(this.state.value, toggle)
+  }
+
+
+  render(props, state) {
+    return (
+      html`
+        <td>
+          <input type="text" value=${state.value} onInput=${debounce(this.onInput, 1000)} />
+          <table class="table is-narrow">
+          <tbody>
+          <tr>
+          <td><${Toggle} desired_state="shorter" state=${this.state} onToggle=${this.onToggle}/></td>
+          <td><${Toggle} desired_state="longer" state=${this.state} onToggle=${this.onToggle}/></td>
+          </tr>
+          </tbody>
+          </table>
+        </td>
+      `
+    );
+  }
+}
+
 class SearchList extends Component {
   state = {
     list: [],
@@ -287,7 +344,7 @@ class SearchList extends Component {
         <${SearchField} name="title" oldstate=${()=>{return this.state}} searchListSetState=${p=>{this.inputHandler(p)}} />
         <${SearchField} name="channel" oldstate=${()=>{return this.state}} searchListSetState=${p=>{this.inputHandler(p)}} />
         <${DateSearchField} name="start" oldstate=${()=>{return this.state}} searchListSetState=${p=>{this.inputHandler(p)}} />
-        <${SearchField} name="duration" oldstate=${()=>{return this.state}} searchListSetState=${p=>{this.inputHandler(p)}} />
+        <${DurationSearchField} name="duration" oldstate=${()=>{return this.state}} searchListSetState=${p=>{this.inputHandler(p)}} />
         <${SearchField} name="topic" oldstate=${()=>{return this.state}} searchListSetState=${p=>{this.inputHandler(p)}} />
       </tr>
       ${this.state.list.map(element => html`
