@@ -83,7 +83,11 @@ class SearchList extends Component {
       });
       return await rawResponse.json();
     }
-    const content = await inner_query();
+    let content = await inner_query();
+    while (('busy' in content) && (this.is_active_query(rules))) {
+      // todo: sleep!!!
+      content = await inner_query();
+    }
     if ('result' in content) {
       // prevent race condition by only setting state if the result comes from the actively set query
       if (this.is_active_query(rules)) {
@@ -126,7 +130,7 @@ class SearchList extends Component {
     }
     this.setState({queries_in_progress: 1});
     const rules = this.make_rules(query_filters);
-    await this.queryList(rules, page);
+    this.queryList(rules, page);
   }
 
   linkHandler(p) {
