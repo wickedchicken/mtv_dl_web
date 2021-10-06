@@ -10,6 +10,16 @@ const debounce = (func, delay) => {
   }
 }
 
+function Toggle(props) {
+  if (props.state.toggle == props.desired_state) {
+    if (props.state.value != '') {
+      return html`<b>${props.desired_state}</b>`
+    }
+    return html`${props.desired_state}`
+  }
+  return html`<a onclick=${() => {props.onToggle(props.desired_state)}}>${props.desired_state}</a>`
+}
+
 function PageList(props) {
   function slice_page_array(page_array) {
     if (props.pages <= props.pagesToDisplay) {
@@ -64,7 +74,7 @@ class SearchField extends Component {
     const { value } = e.target;
     this.setState({ value });
     var new_filter_state = this.props.oldstate()['query_filters'];
-    new_filter_state[this.props.name] = value;
+    new_filter_state[this.props.name] = this.props.name + '=' + value;
     this.props.searchListSetState({ query_filters: new_filter_state })
   }
 
@@ -73,6 +83,57 @@ class SearchField extends Component {
       html`
         <td>
           <input type="text" value=${state.value} onInput=${debounce(this.onInput, 1000)} />
+        </td>
+      `
+    );
+  }
+}
+
+class DateSearchField extends SearchField {
+  state = {
+    toggle: "",
+    value: "",
+  }
+
+
+  compute_filter_state(value, toggle) {
+    if (toggle == 'after') {
+      return 'start+' + value;
+    }
+    if (toggle == 'before') {
+      return 'start-' + value;
+    }
+    return '';
+  }
+
+  setFilterState(value, toggle) {
+    var new_filter_state = this.props.oldstate()['query_filters'];
+    new_filter_state[this.props.name] = this.compute_filter_state(value, toggle);
+    this.props.searchListSetState({ query_filters: new_filter_state })
+  }
+
+  onInput = e => {
+    const { value } = e.target;
+    this.setState({ value });
+    this.setFilterState(value, this.state.toggle)
+  }
+
+  onToggle = toggle => {
+    this.setState({ 'toggle': toggle });
+    this.setFilterState(this.state.value, toggle)
+  }
+
+  render(props, state) {
+    return (
+      html`
+        <td>
+          <input type="text" value=${state.value} onInput=${debounce(this.onInput, 1000)} />
+          <table>
+          <tr>
+          <td> <${Toggle} desired_state="before" state=${this.state} onToggle=${this.onToggle}/></td>
+          <td><${Toggle} desired_state="after" state=${this.state} onToggle=${this.onToggle}/></td>
+          </tr>
+          </table>
         </td>
       `
     );
@@ -127,7 +188,7 @@ class SearchList extends Component {
   }
 
   make_rules(query_filters) {
-    return Object.entries(query_filters).sort().filter(x => x[1].length > 0).map(x => x[0] + '=' + x[1]);
+    return Object.entries(query_filters).sort().filter(x => x[1].length > 0).map(x => x[1]);
   }
 
   is_active_query(expected_rules) {
@@ -188,7 +249,7 @@ class SearchList extends Component {
       <tr>
         <${SearchField} name="title" oldstate=${()=>{return this.state}} searchListSetState=${p=>{this.inputHandler(p)}} />
         <${SearchField} name="channel" oldstate=${()=>{return this.state}} searchListSetState=${p=>{this.inputHandler(p)}} />
-        <${SearchField} name="start" oldstate=${()=>{return this.state}} searchListSetState=${p=>{this.inputHandler(p)}} />
+        <${DateSearchField} name="start" oldstate=${()=>{return this.state}} searchListSetState=${p=>{this.inputHandler(p)}} />
         <${SearchField} name="duration" oldstate=${()=>{return this.state}} searchListSetState=${p=>{this.inputHandler(p)}} />
         <${SearchField} name="topic" oldstate=${()=>{return this.state}} searchListSetState=${p=>{this.inputHandler(p)}} />
       </tr>
