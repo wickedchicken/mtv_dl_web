@@ -11,6 +11,30 @@ const debounce = (func, delay) => {
 }
 
 function PageList(props) {
+  function slice_page_array(page_array) {
+    if (props.pages <= props.pagesToDisplay) {
+      return page_array;
+    }
+
+    // this may break if pagesToDisplay is not even...
+    const halfway = props.pagesToDisplay / 2;
+
+    // handle special case where it's one more page than we want, then the ... don't make sense
+    const dots = ((props.pages == (props.pagesToDisplay + 1)) ? '' : '...');
+    const lefthandside_link = [html`<a onclick=${() => {jump_to_page(1)}}>1</a> ${dots} `]
+    const righthandside_link = [html`${dots} <a onclick=${() => {jump_to_page(props.pages)}}>${props.pages}</a> `]
+
+    if (props.page <= (halfway + 1)) {
+      return page_array.slice(0, props.pagesToDisplay).concat(righthandside_link)
+    }
+
+    if (props.page >= ((props.pages - halfway) - 1)) {
+      return lefthandside_link.concat(page_array.slice(props.pages - props.pagesToDisplay))
+    }
+
+    return lefthandside_link.concat(page_array.slice(props.page - halfway, props.page + halfway)).concat(righthandside_link);
+  }
+
   function jump_to_page(page) {
     props.pageListSetState({ page: page, query_filters: props.queryFilters});
   }
@@ -28,7 +52,7 @@ function PageList(props) {
   }
 
   const page_array = [...Array(props.pages).keys()].map(i => {return render_link(i+1)});
-  return page_array
+  return [html`Pages of results: `].concat(slice_page_array(page_array))
 }
 
 class SearchField extends Component {
@@ -147,12 +171,12 @@ class SearchList extends Component {
     const current_lower_bound = (this.state.item_count == 0) ? 0 : ((this.state.page - 1) * props.resultsPerPage) + 1;
     const current_upper_bound = Math.min(
       this.state.item_count,
-      (this.state.page * props.resultsPerPage) + 1);
+      this.state.page * props.resultsPerPage);
 
     return (
       html`
       ${(this.state.queries_in_progress > 0) ? html`<progress class="progress is-small is-primary" max="100">15%</progress>` : html`<div></div>`}
-      <p>results found (${current_lower_bound}-${current_upper_bound} out of ${this.state.item_count}) <${PageList} pageListSetState=${p=>{this.linkHandler(p)}} pages=${this.state.pages} page=${this.state.page} queryFilters=${this.state.query_filters}/></p>
+      <p>results found (${current_lower_bound}-${current_upper_bound} out of ${this.state.item_count}) <${PageList} pageListSetState=${p=>{this.linkHandler(p)}} pages=${this.state.pages} pagesToDisplay=${10} page=${this.state.page} queryFilters=${this.state.query_filters}/></p>
       <table class="table is-striped is-hoverable is-bordered is-fullwidth">
       <tr>
         <th>Title</th>
