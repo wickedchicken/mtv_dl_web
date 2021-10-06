@@ -48,7 +48,7 @@ class SearchField extends Component {
     return (
       html`
         <td>
-          <input type="text" value=${state.value} onInput=${this.onInput} />
+          <input type="text" value=${state.value} onInput=${debounce(this.onInput, 100)} />
         </td>
       `
     );
@@ -85,13 +85,38 @@ class SearchList extends Component {
     }
     const content = await inner_query();
     if ('result' in content) {
-      this.setState({
-        list: content['result'],
-        page: content['page'],
-        pages: content['last_page'],
-        item_count: content['item_count'],
-      })
+      // prevent race condition by only setting state if the result comes from the actively set query
+      if (this.is_active_query(rules)) {
+        this.setState({
+          list: content['result'],
+          page: content['page'],
+          pages: content['last_page'],
+          item_count: content['item_count'],
+          queries_in_progress: 0,
+        })
+      }
     }
+  }
+
+  make_rules(query_filters) {
+    return Object.entries(query_filters).sort().filter(x => x[1].length > 0).map(x => x[0] + '=' + x[1]);
+  }
+
+  is_active_query(expected_rules) {
+    // once I'm off the plane, see if there is a better way to check for dict or list equality
+    const current = this.make_rules(this.state.query_filters);
+    if (expected_rules.length != current.length) {
+      return false;
+    }
+    // :(
+    let i = 0;
+    while (i < expected_rules.length) {
+      if (expected_rules[i] != current[i]) {
+        return false;
+      }
+      i++;
+    }
+    return true;
   }
 
   async onSubmit(query_filters, page) {
@@ -100,9 +125,8 @@ class SearchList extends Component {
       return;
     }
     this.setState({queries_in_progress: 1});
-    const result = Object.entries(query_filters).filter(x => x[1].length > 0).map(x => x[0] + '=' + x[1]);
-    await this.queryList(result, page);
-    this.setState({queries_in_progress: 0});
+    const rules = this.make_rules(query_filters);
+    await this.queryList(rules, page);
   }
 
   linkHandler(p) {
