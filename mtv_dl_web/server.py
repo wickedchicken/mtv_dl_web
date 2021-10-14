@@ -17,6 +17,8 @@ from mtv_dl import (
 from paginate import Page
 from quart import Quart, abort, jsonify, render_template, request
 
+from mtv_dl_web.serversentevent import ServerSentEvent
+
 SQLITE_POOL_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
 LOADING_DATABASE = None
@@ -58,7 +60,7 @@ async def refresh_database():
         async with DATABASE_LOCK:
 
             def inner_func():
-                SHOWLIST.initialize_if_old(refresh_after=3)
+                SHOWLIST.initialize_if_old(refresh_after=72)
 
             await run_in_sqlite_pool(inner_func)
         REFRESHING_DATABASE.clear()
@@ -172,10 +174,15 @@ async def query():
         except asyncio.TimeoutError:
             return jsonify({"busy": "performing database operations"})
 
+@app.route("/events")
+async def events():
+    return await render_template("index.html")
+
 
 @app.route("/")
 async def hello():
     return await render_template("index.html")
 
 
-app.run(debug=True)
+def main():
+    app.run(debug=True)
