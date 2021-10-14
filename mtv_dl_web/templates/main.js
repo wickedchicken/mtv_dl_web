@@ -21,13 +21,13 @@ function Toggle(props) {
 }
 
 function SortToggle(props) {
-  return ["v", "^"].map(x => {
+  return ["▼", "▲"].map(x => {
     if (props.state().sort_field == props.field) {
       if (props.state().sort_direction == x) {
-        return html`<small><b>sort ${x}</b></small>`
+        return html`<small><b>${x}</b></small>`
       }
     }
-    return html`<small><a onclick=${() => {props.sortToggle(props.field, x)}}>sort ${x}</a></small> `
+    return html`<small><a onclick=${() => {props.sortToggle(props.field, x)}}>${x}</a></small> `
   })
 }
 
@@ -144,18 +144,16 @@ class DateSearchField extends SearchField {
   render(props, state) {
     return (
       html`
-        <td>
-          <input type="text" value=${state.value} onInput=${debounce(this.onInput, 1000)} />
-          <table class="table is-narrow">
-          <tbody>
-          <tr>
-          <td><${Toggle} desired_state="before" state=${this.state} onToggle=${this.onToggle}/></td>
-          <td><${Toggle} desired_state="after" state=${this.state} onToggle=${this.onToggle}/></td>
-          <td><${Toggle} desired_state="ago" state=${this.state} onToggle=${this.onToggle}/></td>
-          </tr>
-          </tbody>
-          </table>
-        </td>
+        <div class="columns">
+          <div class="column">
+            <input type="text" value=${state.value} onInput=${debounce(this.onInput, 1000)} />
+            <div class="columns">
+              <div class="column"><${Toggle} desired_state="before" state=${this.state} onToggle=${this.onToggle}/></div>
+              <div class="column"><${Toggle} desired_state="after" state=${this.state} onToggle=${this.onToggle}/></div>
+              <div class="column"><${Toggle} desired_state="ago" state=${this.state} onToggle=${this.onToggle}/></div>
+            </div>
+          </div>
+        </div>
       `
     );
   }
@@ -228,7 +226,7 @@ class SearchList extends Component {
     pages: 1,
     item_count: 0,
     sort_field: "start",
-    sort_direction: "v"
+    sort_direction: "▼"
   }
 
   async queryList(rules, page, sort_field, sort_direction) {
