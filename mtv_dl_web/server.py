@@ -15,7 +15,7 @@ from mtv_dl import (
     serialize_for_json,
 )
 from paginate import Page
-from quart import Quart, abort, jsonify, render_template, request
+from quart import Quart, abort, jsonify, render_template, request, make_response
 
 from mtv_dl_web.serversentevent import ServerSentEvent
 
@@ -24,6 +24,7 @@ SQLITE_POOL_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 LOADING_DATABASE = None
 REFRESHING_DATABASE = None
 DATABASE_LOCK = None
+EVENT_QUEUE = None
 
 SHOWLIST = None
 
@@ -35,9 +36,22 @@ async def run_in_sqlite_pool(func):
     return await asyncio.get_running_loop().run_in_executor(SQLITE_POOL_EXECUTOR, func)
 
 
+async def database_status_change(event, action):
+    if action == 'set':
+        event.set()
+    elif action == 'clear':
+        event.clear()
+    else:
+        raise ValueError('{} is not a valid action'.format(action))
+
+    current_status = await database_status()
+
+    await EVENT_QUEUE.put({'event': 'database_status', 'data': current_status})
+
+
 async def load_database():
     if not LOADING_DATABASE.is_set():
-        LOADING_DATABASE.set()
+        await database_status_change(LOADING_DATABASE, 'set')
         global SHOWLIST
         cw_dir = Path(os.getcwd())
         async with DATABASE_LOCK:
@@ -51,19 +65,19 @@ async def load_database():
             SHOWLIST = await run_in_sqlite_pool(inner_func)
             DATABASE_QUERY_CACHE.clear()
             DATABASE_QUERY_PAGE_CACHE.clear()
-        LOADING_DATABASE.clear()
+        await database_status_change(LOADING_DATABASE, 'clear')
 
 
 async def refresh_database():
     if not REFRESHING_DATABASE.is_set():
-        REFRESHING_DATABASE.set()
+        await database_status_change(REFRESHING_DATABASE, 'set')
         async with DATABASE_LOCK:
 
             def inner_func():
                 SHOWLIST.initialize_if_old(refresh_after=72)
 
             await run_in_sqlite_pool(inner_func)
-        REFRESHING_DATABASE.clear()
+        await database_status_change(REFRESHING_DATABASE, 'clear')
 
 
 @cached(cache=DATABASE_QUERY_CACHE)
@@ -93,10 +107,12 @@ async def refresh_database_on_startup():
     global LOADING_DATABASE
     global REFRESHING_DATABASE
     global DATABASE_LOCK
+    global EVENT_QUEUE
 
     LOADING_DATABASE = asyncio.Event()
     REFRESHING_DATABASE = asyncio.Event()
     DATABASE_LOCK = asyncio.Lock()
+    EVENT_QUEUE = asyncio.Queue()
 
     async def inner_func():
         await load_database()
@@ -110,8 +126,6 @@ async def close_sqlite_pool_executor():
     if shutdownobj := SQLITE_POOL_EXECUTOR.shutdown(wait=True):
         await shutdownobj
 
-
-@app.route("/database_status")
 async def database_status():
     if LOADING_DATABASE.is_set():
         return "loading database"
@@ -120,6 +134,9 @@ async def database_status():
     else:
         return "database ready"
 
+@app.route("/database_status")
+async def database_status_route():
+    return await database_status()
 
 @app.route("/refresh_database", methods=["POST"])
 async def refresh_database_route():
@@ -174,9 +191,25 @@ async def query():
         except asyncio.TimeoutError:
             return jsonify({"busy": "performing database operations"})
 
-@app.route("/events")
+@app.route('/events')
 async def events():
-    return await render_template("index.html")
+    async def send_events():
+        while True:
+            data = await EVENT_QUEUE.get()
+            event = ServerSentEvent(**data)
+            yield event.encode()
+
+
+    response = await make_response(
+        send_events(),
+        {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Transfer-Encoding': 'chunked',
+        },
+    )
+    response.timeout = None  # No timeout for this route
+    return response
 
 
 @app.route("/")

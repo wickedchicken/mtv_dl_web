@@ -1,4 +1,5 @@
 from typing import Optional
+from uuid import uuid4
 
 class ServerSentEvent:
     def __init__(
@@ -18,8 +19,9 @@ class ServerSentEvent:
         message = f"data: {self.data}"
         if self.event is not None:
             message = f"{message}\nevent: {self.event}"
-        if self.id is not None:
-            message = f"{message}\nid: {self.id}"
+        if self.id is None:
+            self.id = uuid4()
+        message = f"{message}\nid: {self.id}"
         if self.retry is not None:
             message = f"{message}\nretry: {self.retry}"
         message = f"{message}\r\n\r\n"

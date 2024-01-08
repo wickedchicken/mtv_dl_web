@@ -365,12 +365,15 @@ class DatabaseStatus extends Component {
 
   // Called whenever our component is created
   async componentDidMount() {
-    this.timer = setInterval(async () => {
-      const database_status_fetch = await fetch('/database_status');
-      const status_text = await database_status_fetch.text();
-      // update status every second
-      this.setState({database_status: status_text});
-    }, 1000);
+    var es = new EventSource('/events');
+    es.onmessage = function (event) {
+      if (event.event == 'database_status') {
+        this.setState({database_status: event.data});
+      }
+    };
+    es.onerror = function(err) {
+      console.error("EventSource failed:", err);
+    };
   }
 
   // Called just before our component will be destroyed
